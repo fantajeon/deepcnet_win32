@@ -21,3 +21,7 @@
 *.app
 *.sdf
 *.suo
+Debug/
+x64/
+*.pdb
+*.opensdf
