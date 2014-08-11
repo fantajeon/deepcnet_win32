@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DeepCNET_win32", "DeepCNET_win32.vcxproj", "{AFB64B01-6548-42D4-A147-9857BCBAAB1F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DeepCNET_win64", "..\DeepCNET_win64\DeepCNET_win64.vcxproj", "{516806A0-C7CD-416D-8DEE-64D8AA54EF60}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Debug|Win32.Build.0 = Debug|Win32
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Debug|x64.ActiveCfg = Debug|x64
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Debug|x64.Build.0 = Debug|x64
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Release|Win32.ActiveCfg = Release|Win32
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Release|Win32.Build.0 = Release|Win32
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Release|x64.ActiveCfg = Release|x64
+		{AFB64B01-6548-42D4-A147-9857BCBAAB1F}.Release|x64.Build.0 = Release|x64
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Debug|Win32.ActiveCfg = Debug|Win32
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Debug|Win32.Build.0 = Debug|Win32
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Debug|x64.ActiveCfg = Debug|x64
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Debug|x64.Build.0 = Debug|x64
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Release|Win32.ActiveCfg = Release|Win32
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Release|Win32.Build.0 = Release|Win32
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Release|x64.ActiveCfg = Release|x64
+		{516806A0-C7CD-416D-8DEE-64D8AA54EF60}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
