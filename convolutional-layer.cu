@@ -223,7 +223,8 @@ __global__ void dGradientDescent2 //momentum
 	float np = 1.2f;
 	float nm = 0.5f;
 	float mt = 0.9f;
-	int subiter = niter%50;
+	//int subiter = niter%50;
+	int subiter = niter;
 	for(int i = threadIdx.x; i<N;i+=thisManyThreads) {
 		float wt;
 		float lr;
@@ -400,6 +401,7 @@ __global__ void dGradientDescent //momentum
 }
 
 
+
 //////////////////////////////////////////////////////////////////////
 // implementation
 __host__ void ConvolutionalLayer::constraintWeight()
@@ -415,11 +417,11 @@ __host__ void ConvolutionalLayer::applyDerivatives(float* d_deltaW, float* d_del
 	/*dGradientDescent<<<1,thisManyThreads>>>(d_deltaW, d_momentumW, d_W, W.size(), learningRate, momentumDecayRate, weightDecayRate);
 	dGradientDescent<<<1,thisManyThreads>>>(d_deltaB, d_momentumB, d_B, B.size(), learningRate, momentumDecayRate, weightDecayRate);*/
 
-	dGradientDescent2<<<1,thisManyThreads>>>(d_deltaW, d_W1, d_momentumW, d_W, d_dW1, d_lrW, d_weightDecayRateW, W.size(), learningRate, momentumDecayRate, weightDecayRate, nloop);
-	dGradientDescent2<<<1,thisManyThreads>>>(d_deltaB, d_B1, d_momentumB, d_B, d_dB1, d_lrB, d_weightDecayRateB, B.size(), learningRate, momentumDecayRate, weightDecayRate, nloop);
+	dGradientDescent2<<<1,thisManyThreads>>>(d_deltaW, d_W1, d_momentumW, d_W, d_dW1, d_lrW, d_weightDecayRateW, W.size(), max_scale*learningRate, momentumDecayRate, weightDecayRate, nloop);
+	dGradientDescent2<<<1,thisManyThreads>>>(d_deltaB, d_B1, d_momentumB, d_B, d_dB1, d_lrB, d_weightDecayRateB, B.size(), max_scale*learningRate, momentumDecayRate, weightDecayRate, nloop);
 
 	dConstraintLearningRate<<<1,thisManyThreads>>>(d_lrW,d_lrB, fs2, kMaxout, nIn, nOut);
-	dConstraintWeight<<<1,thisManyThreads>>>(d_deltaW, d_deltaB, fs2, kMaxout, nIn, nOut);
+	//dConstraintWeight<<<1,thisManyThreads>>>(d_deltaW, d_deltaB, fs2, kMaxout, nIn, nOut);
 	d_zeroArray<float>(d_deltaB, B.size());
 	d_zeroArray<float>(d_deltaW, W.size());
 
@@ -465,18 +467,18 @@ __host__ void ConvolutionalLayer::putWeightsToStream(std::ofstream &f)
 	f.write((char*)&B[0],sizeof(float)*B.size()); 
 }
 
-__host__ ConvolutionalLayer::ConvolutionalLayer
-	(int fs, int ps, int s0, int s1, int s2, int in, int out, float learningRateScale, sigmoidType sig, float dropoutProbability, int kMaxout)
-	: filterSize(fs), 
+__host__ ConvolutionalLayer::ConvolutionalLayer(int width, int height, int fs, int ps, int s0, int s1, int s2, int in, int out, float learningRateScale, sigmoidType sig, float dropoutProbability, int kMaxout)
+	: width(width),
+	height(height),
+	filterSize(fs), 
 	poolSize(ps), 
 	s0(s0), s1(s1), s2(s2), 
 	nIn(in), nOut(out), sigmoid(sig), 
 	dropoutProbability(dropoutProbability), 
 	learningRateScale(learningRateScale),
-	kMaxout(kMaxout) ,
+	kMaxout(kMaxout),
 	nloop(0)
 {
-
 	cout<<"ConvolutionalLayer()"<<endl;
 	RNG rng;
 	fs2=filterSize*filterSize;
@@ -484,6 +486,10 @@ __host__ ConvolutionalLayer::ConvolutionalLayer
 	float fanIn=nIn*fs2;
 	float fanOut=nOut*fs2*1.0f/ps2;
 	float scale=pow(6.0f/(fanIn+fanOut),0.5f);
+	//float scale=pow(1.0f/(fanIn+fanOut),0.5f);
+	//float scale = 0.005;
+
+	max_scale = scale;
 
 	B.resize(nOut*kMaxout,0);
 	d_B=d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
@@ -523,6 +529,73 @@ __host__ ConvolutionalLayer::ConvolutionalLayer
 	d_weightDecayRateB = d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
 
 
+	cout<<"ConvolutionalLayer(), scale:"<<max_scale<<endl;
+}
+
+__host__ ConvolutionalLayer::ConvolutionalLayer
+	(int fs, int ps, int s0, int s1, int s2, int in, int out, float learningRateScale, sigmoidType sig, float dropoutProbability, int kMaxout)
+	: width(0),
+	height(0),
+	filterSize(fs), 
+	poolSize(ps), 
+	s0(s0), s1(s1), s2(s2), 
+	nIn(in), nOut(out), sigmoid(sig), 
+	dropoutProbability(dropoutProbability), 
+	learningRateScale(learningRateScale),
+	kMaxout(kMaxout) ,
+	nloop(0)
+{
+
 	cout<<"ConvolutionalLayer()"<<endl;
+	RNG rng;
+	fs2=filterSize*filterSize;
+	ps2=poolSize*poolSize;
+	float fanIn=nIn*fs2;
+	float fanOut=nOut*fs2*1.0f/ps2;
+	float scale=pow(6.0f/(fanIn+fanOut),0.5f);
+	//float scale=pow(1.0f/(fanIn+fanOut),0.5f);
+	//float scale = 0.005;
+
+	max_scale = scale;
+
+	B.resize(nOut*kMaxout,0);
+	d_B=d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
+	d_momentumB=d_allocateArrayZeroed<float>(B.size(),__FILE__,__LINE__);
+
+	W.resize(filterSize*filterSize*nIn*nOut*kMaxout);
+	double acc = 0.0;
+	for (int i=0; i<W.size(); i++) {
+		W[i]=rng.uniform(-scale,scale);
+		/*if( W[i] > acc ) {
+		acc = W[i];
+		}*/
+	}
+
+	/*for (int i=0; i<W.size(); i++) {
+	W[i] /= acc;
+	W[i] *= 0.5f;
+	}*/
+	//W[i]=rng.uniform(-1,1);
+
+	/*char sztmp[2048];
+	sprintf(sztmp, "L%d-weight.txt");
+	FILE *fp = fopen(sztmp, "wt");
+	for (int i=0; i<W.size(); i++)
+	fprintf(fp, "%f,", W[i]);
+	fclose(fp);*/
+	d_W=d_allocateArrayFromVector<float>(W,__FILE__,__LINE__);
+	d_momentumW=d_allocateArrayZeroed<float>(W.size(),__FILE__,__LINE__);
+
+	d_lrW = d_allocateArrayFromVector<float>(W,__FILE__,__LINE__);
+	d_lrB = d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
+	d_W1 = d_allocateArrayFromVector<float>(W,__FILE__,__LINE__);
+	d_B1 =d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
+	d_dW1 = d_allocateArrayFromVector<float>(W,__FILE__,__LINE__);
+	d_dB1 = d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
+	d_weightDecayRateW = d_allocateArrayFromVector<float>(W,__FILE__,__LINE__);
+	d_weightDecayRateB = d_allocateArrayFromVector<float>(B,__FILE__,__LINE__);
+
+
+	cout<<"ConvolutionalLayer(), scale:"<<max_scale<<endl;
 }
 

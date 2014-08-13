@@ -142,8 +142,8 @@ void ComputationalCNN::applyDerivatives()
 
 	static uint32_t seq = 0;
 	for (int l=0;l<CL.size();l++) {
-		//CL[l]->applyDerivatives(nn.learningRate, nn.momentumDecayRate, nn.weightDecayRate, (seq == l) ? true : false);
-		CL[l]->applyDerivatives(nn.learningRate, nn.momentumDecayRate, nn.weightDecayRate, true);
+		CL[l]->applyDerivatives(nn.learningRate, nn.momentumDecayRate, nn.weightDecayRate, (seq == l) ? true : false);
+		//CL[l]->applyDerivatives(nn.learningRate, nn.momentumDecayRate, nn.weightDecayRate, true);
 	}
 
 	++seq;

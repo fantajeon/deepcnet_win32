@@ -25,3 +25,5 @@ Debug/
 x64/
 *.pdb
 *.opensdf
+*.cnn
+test_log.txt

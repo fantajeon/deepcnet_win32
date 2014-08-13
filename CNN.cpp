@@ -519,7 +519,7 @@ LeNet7::LeNet7(int sizeMultiplier, int nInputFeatures, int nOutputClasses, float
 		addLayer(6,3, 3*sizeMultiplier,learningRateScales[1],baseSigmoidType);
 		addLayer(6,1,12*sizeMultiplier,learningRateScales[2],baseSigmoidType);
 		addLayer(1,1,60*sizeMultiplier,learningRateScales[3],baseSigmoidType);
-		addLayer(1,1,nOutputClasses,learningRateScales[4],SOFTMAX,0.5f);
+		addLayer(1,1,nOutputClasses,learningRateScales[4],SOFTMAX,0.0f);
 		initialize();
 		cout << "LeNet7: sizeMultiplier = " << sizeMultiplier << endl;
 }

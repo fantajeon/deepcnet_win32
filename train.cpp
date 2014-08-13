@@ -35,7 +35,7 @@ void test(bool verbose)
 		total+=batch->batchSize;
 		delete batch;
 		if (verbose)
-			cout << "Test set size: " << total << " Test error: " << wrong*100.0/total << "%" <<endl;
+			cout << "Epoch:"<<g_pccnn->nn.epoch<<"Test set size: " << total << " Test error: " << wrong*100.0/total << "%" <<endl;
 	}
 	bp.join();
 	if (!verbose)
@@ -44,7 +44,7 @@ void test(bool verbose)
 	g_pccnn->nn.saveWeights();
 
 	FILE *fplog = fopen("test_log.txt", "at");
-	fprintf(fplog, "Test set size: %d Test error: %f%%\n", total, wrong*100.0/total);
+	fprintf(fplog, "Epoch: %d Test set size: %d Test error: %f%%\n", g_pccnn->nn.epoch, total, wrong*100.0/total);
 	fclose(fplog);
 }
 
@@ -102,6 +102,8 @@ void train_test(int nTrain, int nTest)
 	const double trend_scale = 1.05;
 	char sztmp[4096];
 	bool bIsEof = false;
+	float init_descre_rate = 0.99;
+	float descre_rate = init_descre_rate;
 
 	FILE *fplog = fopen("test_log.txt", "at");
 	fprintf(fplog, "===================================\n");
@@ -264,16 +266,18 @@ void train_test(int nTrain, int nTest)
 			}*/
 
 			double r = (prev_percent<per_trend) ? prev_percent/per_trend : per_trend/prev_percent;
-			if( r > 0.9 ) {
+			if( per_trend > prev_percent ) {
 				float prev_learningRate = g_pccnn->nn.learningRate;
-				g_pccnn->nn.learningRate = (std::max<float>)(g_pccnn->nn.learningRate*0.99f,loweset_lr);
-				prev_percent = (std::min<double>)(prev_percent,per_trend);
-				_snprintf(sztmp, sizeof(sztmp), "derease learning rate: %e->%e", prev_learningRate, g_pccnn->nn.learningRate);
+				g_pccnn->nn.learningRate = (std::max<float>)(g_pccnn->nn.learningRate*descre_rate,loweset_lr);
+				_snprintf(sztmp, sizeof(sztmp), "derease learning rate: %e->%e(decresing rate:%e)", prev_learningRate, g_pccnn->nn.learningRate,descre_rate);
 				cout<<sztmp<<endl;
+
+				descre_rate *= 0.5;
 			}
 			else {
-				prev_percent = per_trend;
+				descre_rate = init_descre_rate;
 			}
+			prev_percent = (std::min<double>)(prev_percent,per_trend);
 		}
 		if(bIsEof) {
 			cout<<"MiniBatch-EOF"<<endl;

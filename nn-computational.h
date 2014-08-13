@@ -35,6 +35,9 @@ public:
 	RNG rng;
 	ConvolutionalLayer& L;
 	int level;
+	int width;
+	int height;
+
 	float* d_deltaW;//     (d cost)/(d W)
 	float* d_deltaB;//     (d cost)/(d B)
 	ConvolutionalComputationalLayerInterface &input;
@@ -63,7 +66,9 @@ public:
 
 	ConvolutionalComputationalLayerBase
 		(ConvolutionalLayer &L, int level, ConvolutionalComputationalLayerInterface &input) :
-	L(L), level(level), input(input), epoch(0) {}
+			L(L), level(level), input(input), epoch(0), width(L.width), height(L.height) {}
+
+	virtual ~ConvolutionalComputationalLayerBase() {}
 	virtual void initialize() {}
 	virtual void copyDataToGPU() {}
 	virtual void forwards() {}
@@ -80,20 +85,30 @@ public:
 class ConvolutionalComputationalLayer : public ConvolutionalComputationalLayerBase 
 {
 public:
-	float* d_sgemm;
+	float*	d_sgemm;
+	float**	d_pin;
+	float**	d_kMaxout;
+	float** d_pkernel;
+	float*	d_pbias;
+	int**	d_pkchoice;
+	float**	d_pmiddleout;
+	float**	d_pout;
+	int**	d_maxPoolChoice2;
+
 	int* d_cRules;
 	int* d_pRules;
 	vector<int> cRules;
 	vector<int> pRules;
 
 	ConvolutionalComputationalLayer(ConvolutionalLayer &L, int level, ConvolutionalComputationalLayerInterface &input);
-	~ConvolutionalComputationalLayer();
+	virtual ~ConvolutionalComputationalLayer();
 	bool nullVectorSurvivesConvolution(int item);
 	void gridConvolutionRules(vector<int>& g0, vector<int>& g1, int bg0, int bg1);
 	bool nullVectorSurvivesPooling(int item);
 	void gridPoolingRules(vector<int>& g1, vector<int>& g2, int bg1, int bg2);
 	void initialize();
 	void copyDataToGPU();
+	void copyDataToGPU(float **pin, int width, int height);
 	void forwards();
 	void backwards(float* &d_delta);
 	void applyDerivatives(float learningRate, float momentumDecayRate, float weightDecayRate, bool bupdate);

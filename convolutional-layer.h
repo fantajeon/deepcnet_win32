@@ -52,6 +52,8 @@ __global__ void dDerivativeOfCostWRTpreSoftmaxTopLevelWeights(int batchSize, flo
 class ConvolutionalLayer 
 {
 public:
+	int width;
+	int height;
 	int filterSize;
 	int poolSize;
 	int s0,s1,s2;
@@ -78,10 +80,12 @@ public:
 	float *d_weightDecayRateW;
 	float *d_weightDecayRateB;
 	int nloop;
+	float max_scale;
 
 	__host__ void loadWeightsFromStream(std::ifstream &f);
 	__host__ void putWeightsToStream(std::ofstream &f);
 	__host__ ConvolutionalLayer(int fs, int ps, int s0, int s1, int s2, int in, int out, float learningRateScale, sigmoidType sig, float dropoutProbability=0, int kMaxout=1);
+	__host__ ConvolutionalLayer(int width, int height, int fs, int ps, int s0, int s1, int s2, int in, int out, float learningRateScale, sigmoidType sig, float dropoutProbability=0, int kMaxout=1);
 	__host__ void applyDerivatives(float* d_deltaW, float* d_deltaB, float learningRate, float momentumDecayRate, float weightDecayRate);
 	__host__ void checkapplyDerivatives(float* d_deltaW, float* d_deltaB, float learningRate, float momentumDecayRate, float weightDecayRate);
 	__host__ void constraintWeight();

@@ -24,9 +24,10 @@ const int scale_N=96;
 const int startEpoch=0;
 const char weightFileNameFormat[]="mnist_epoch-%d.cnn";
 const int trainingBatchSize=50;
-const float learningRate=0.001f/(float)trainingBatchSize;
+//const float learningRate=0.5f/(float)trainingBatchSize;
+const float learningRate=1.0f;
 const float learningRateDecayRate=1e-12;
-const int decreasing_check_epoch = 100;
+const int decreasing_check_epoch = 2000;
 
 
 #define ACTION train_test(6000,6000)

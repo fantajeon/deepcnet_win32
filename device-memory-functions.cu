@@ -101,3 +101,4 @@ void canary(const char* file, int linenumber)
 		cudaFree(a);
 	}
 }
+

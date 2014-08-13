@@ -53,11 +53,39 @@ __global__ void dMaxPool
 
 __global__ void dMaxPoolBackprop
 	(int* rules, float* d1, float* d2, int count, int ps2, int nOut, unsigned char* d_choice);
-
+__global__ void dConvolution(float *pin, float *pout, int width, int height, float *pkernel, int kw, int kh);
 
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
+__global__ void dConvolution(float *pin, float *pout, int width, int height, float *pkernel, int kw, int kh)
+{
+	int N = width*height;
+	for(int i=threadIdx.x; i < N; i+=thisManyThreads) {
+		int x = i%width;
+		int y = i/width;
+
+		float sum = 0.0f;
+		int begx = x, endx = min(width,x + kw);
+		int begy = y, endy = min(height,y+ kh);
+		for(int sx=begx, ux=0; sx < endx; ++sx, ++ux){
+			for(int sy=begy, uy=0; sy < endy; ++sy, ++uy) {
+				sum += pin[ sy*width + sx ] * pkernel[uy*kw + ux];
+			}
+		}
+
+		pout[i] += sum;
+	}
+}
+
+__global__ void dAddScalar(float *pin, float *pout, int N, float val)
+{
+	for(int i=threadIdx.x; i < N; i+=thisManyThreads) {
+		pout[i] = pin[i] + val;
+	}
+}
+
+
 __global__ void dPropForwardToMatrixMultiplyInput(float* d_features, float* d_sgemm, int* rules, int count, int nIn, int fs2) 
 {
 	for (int i = threadIdx.x;i<count*fs2;i+=thisManyThreads) {
@@ -158,6 +186,52 @@ __global__ void dMaxout(float* g1a, float* g1b, int count, int kMaxout, unsigned
 	}
 }
 
+__global__ void dkMaxout2(float **d_kMaxout, int width, int height, int kMaxout, int *d_pkchoice, float *d_pOut)
+{
+	int count = width*height;
+	for (int i=threadIdx.x; i<count; i+=thisManyThreads) {
+		int max_k = 0;
+		float v = d_kMaxout[0][i];
+		for(int j=1; j < kMaxout; ++j) {
+			if( d_kMaxout[j][i] > v ) {
+				v = d_kMaxout[j][i];
+				max_k = j;
+			}
+		}
+
+		d_pkchoice[i] = max_k;
+		d_pOut[i] = v;
+	}
+}
+
+__global__ void dMaxPool2(float * d_pin, int width, int height, int ps, float *d_pout, int * d_maxPoolChoice2 )
+{
+	int pw = width/ps;
+	int ph = height/ps;
+	int count = pw*ph;
+
+	for (int i=threadIdx.x; i<count; i+=thisManyThreads) {
+		int x = i%pw;
+		int y = i/pw;
+
+		int begx = x*ps, endx = min(width,x*ps + ps);
+		int begy = y*ps, endy = min(height,y*ps + ps);
+		int max_id = 0;
+		float val = -99999999.0f;
+		for(int sx=begx, ux=0; sx < endx; ++sx, ++ux){
+			for(int sy=begy, uy=0; sy < endy; ++sy, ++uy) {
+				if( d_pin[sx + sy*width] > val ) {
+					val = d_pin[sx + sy*width];
+					max_id = sx + sy*width;
+				}
+			}
+		}
+
+		d_pout[i] = val;
+		d_maxPoolChoice2[i] = max_id;
+	}
+}
+
 __global__ void dMaxoutBackprop(float* d1a, float* d1b, int count, int kMaxout, unsigned char* d_choice) 
 {
 	for (int i=threadIdx.x; i<count; i+=thisManyThreads) {
@@ -207,6 +281,8 @@ ConvolutionalComputationalLayer::ConvolutionalComputationalLayer(ConvolutionalLa
 	d_deltaB=d_allocateArrayZeroed<float>(L.B.size(),__FILE__,__LINE__);
 	d_deltaW=d_allocateArrayZeroed<float>(L.W.size(),__FILE__,__LINE__);
 
+	d_kMaxout = new float*[L.kMaxout];
+
 	s_W = L.W;
 	s_B = L.B;
 	s_Cost = 1.0;
@@ -223,9 +299,15 @@ ConvolutionalComputationalLayer::~ConvolutionalComputationalLayer()
 	safeCudaFree(d_deltaW);
 	safeCudaFree(d_deltaB);
 
+	if(d_kMaxout) {
+		for(int k=0; k < L.kMaxout; ++k) {
+			safeCudaFree(d_kMaxout[k]);
+		}
+		delete [] d_kMaxout;
+	}
+
 	cout<<"~ConvolutionalComputationalLayer()"<<endl;
 }
-
 
 bool ConvolutionalComputationalLayer::nullVectorSurvivesConvolution(int item) {
 	for (int i=0; i<L.s1;i++) {
@@ -346,6 +428,8 @@ void ConvolutionalComputationalLayer::initialize()
 		while (output.featureSampleNumbers.size() < output.count)
 			output.featureSampleNumbers.push_back(item);
 	}
+
+	
 	// size_t Free, Total;
 	// cudaError_t result=cudaMemGetInfo(&Free, &Total);
 	// cout << Free<< " " << Total<<endl;
@@ -353,7 +437,14 @@ void ConvolutionalComputationalLayer::initialize()
 	// cout <<input.count <<" " << middle.count << " " << output.count <<endl;
 }
 
-void ConvolutionalComputationalLayer::copyDataToGPU() 
+void ConvolutionalComputationalLayer::copyDataToGPU(float **pin, int width, int height)
+{
+	for(int i=0; i < L.nIn; ++i) {
+		h2dMemcopy<float>(pin[i], d_pin[i], width*height);
+	}
+}
+
+void ConvolutionalComputationalLayer::copyDataToGPU()
 {
 	d_cRules=d_allocateArrayFromVector<int>(cRules,__FILE__,__LINE__);
 	d_pRules=d_allocateArrayFromVector<int>(pRules,__FILE__,__LINE__);
@@ -370,10 +461,12 @@ void ConvolutionalComputationalLayer::copyDataToGPU()
 	} else
 		output.d_features=middle.d_features;
 
-	//cudaDeviceSynchronize();
-
 	h2dMemcopy<float>(&(L.W[0]), L.d_W, L.W.size());
 	h2dMemcopy<float>(&(L.B[0]), L.d_B, L.B.size());
+
+	for(int k=0; k < L.kMaxout; ++k) {
+		d_zeroArray<float>(d_kMaxout[k], width*height);
+	}
 }
 
 
@@ -434,46 +527,33 @@ void ConvolutionalComputationalLayer::forwards()
 		dDropoutFeatures<<<1,thisManyThreads>>>(input.d_features, d_featureSampleNumbers, input.count, L.nIn, d_featureWeight);
 	}
 
-	__cudaCheckError(__FILE__, __LINE__);
-	//convolution
-	dPropForwardToMatrixMultiplyInput<<<1,thisManyThreads>>>(input.d_features, d_sgemm, d_cRules, middle.count,L.nIn,L.fs2);
-	//cudaDeviceSynchronize();
+	
+	for(int o=0; o < L.nOut; ++o) {
+		for(int k=0; k < L.kMaxout; ++k) {
+			for(int i=0; i < L.nIn; ++i) {
+				dConvolution<<<1,thisManyThreads>>>(d_pin[i], d_kMaxout[k+o*L.kMaxout], width, height, d_pkernel[k+o*L.kMaxout], L.filterSize, L.filterSize);
+			}
 
+			// set bias
+			dAddScalar<<<1,thisManyThreads>>>(d_kMaxout[k+o*L.kMaxout],d_kMaxout[k+o*L.kMaxout],width*height,d_pbias[k+o*L.kMaxout]);
+		}
 
-	__cudaCheckError(__FILE__, __LINE__);
-	dReplicateArray<float><<<1,thisManyThreads>>>       //set bias
-		(L.d_B, d_featuresToMaxout, L.nOut*L.kMaxout,middle.count);
-	//cudaDeviceSynchronize();
+		if( L.kMaxout > 1 ) {
+			for(int k=0; k < L.kMaxout; ++k) {
+				dkMaxout2<<<1,thisManyThreads>>>(d_kMaxout + o*L.kMaxout, width, height, L.kMaxout, d_pkchoice[o], d_pmiddleout[o]);
+			}
+		}
+		else {
+			d_pmiddleout[o] = d_kMaxout[o];
+		}
 
-
-	__cudaCheckError(__FILE__, __LINE__);
-	d_rowMajorSGEMM_alphaAB_betaC(cublasHandle,
-		d_sgemm, L.d_W, d_featuresToMaxout,
-		middle.count, L.fs2*L.nIn, L.nOut*L.kMaxout,
-		1.0f, 1.0f);
-	//cudaDeviceSynchronize();
-
-	//int al_cnt = middle.count*L.nOut*L.kMaxout;
-	//float *pfeatureToMax = (float*)malloc(sizeof(float)*al_cnt);
-
-	//d2hMemcopy<float>( d_featuresToMaxout, pfeatureToMax, al_cnt);
-	//char sztmp[2048];
-	//sprintf(sztmp, "L%d.txt", this->level);
-	//FILE *fp = fopen(sztmp, "wt");
-	//for(int c=0; c < al_cnt; c++) {
-	//	if( (c%middle.count) == 0 ) {
-	//		fprintf(fp, "\n¡Ú");
-	//	}
-	//	fprintf(fp, "%f,", pfeatureToMax[c]);
-	//}
-	//fclose(fp);
-	//free(pfeatureToMax);
-
-	//Maxout
-	if (L.kMaxout>1) {
-		dMaxout<<<1,thisManyThreads>>>
-		(d_featuresToMaxout, middle.d_features, middle.count*L.nOut, L.kMaxout, d_maxoutChoice);
-		__cudaCheckError(__FILE__, __LINE__);
+		// pooling
+		if( L.poolSize > 1 ) {
+			dMaxPool2<<<1,thisManyThreads>>>( d_pmiddleout[o], width, height, L.poolSize, d_pout[o], d_maxPoolChoice2[o] );
+		}
+		else {
+			d_pout[o] = d_pmiddleout[o];
+		}
 	}
 
 	//maxpooling
@@ -508,8 +588,6 @@ void ConvolutionalComputationalLayer::forwards()
 	}
 	__cudaCheckError(__FILE__, __LINE__);
 	//cudaDeviceSynchronize();
-
-
 }
 
 void ConvolutionalComputationalLayer::backwards(float* &d_delta)  
